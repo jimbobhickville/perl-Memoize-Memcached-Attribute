@@ -46,13 +46,26 @@ our %called;
 }
 
 sub can_it_blend :Test(startup => 1) {
-	use_ok('Memoize::Memcached::Attribute') or BAIL_OUT("Could not compile the module, abandon ship");
+	require_ok('Memoize::Memcached::Attribute') or BAIL_OUT("Could not compile the module, abandon ship");
 }
 
-sub reset :Test(setup) {
+sub clean_slate :Test(setup) {
 	my $self = shift;
 	%called = ();
 	$Memoize::Memcached::Attribute::MEMCACHE->flush_all;
+}
+
+sub reset :Test(2) {
+	my $self = shift;
+
+	my $count = $called{as_function} || 0;
+	Memoize::Memcached::Attribute::Test::Class::as_function(0..9);
+	is($called{as_function}, ++$count, "Function called");
+
+	Memoize::Memcached::Attribute::reset(Mock::Cache::Memcached->new);
+
+	Memoize::Memcached::Attribute::Test::Class::as_function(0..9);
+	is($called{as_function}, $count, "Function not called due to being cached");
 }
 
 sub as_function :Test(3) {
