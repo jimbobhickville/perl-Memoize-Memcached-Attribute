@@ -10,11 +10,13 @@ use Storable ();
 
 our $VERSION = '0.10'; # VERSION
 our $MEMCACHE;
+our %CLIENT_PARAMS = (
+	servers => ['127.0.0.1:11211']
+);
 
 sub import {
 	my $package = shift;
 	my %attrs   = (UNIVERSAL::isa($_[0], 'HASH')) ? %{ $_[0] } : @_;
-
 
 	unless ($attrs{'-noattrimport'}) {
 		my ($caller) = caller();
@@ -29,24 +31,32 @@ sub import {
 		$MEMCACHE = $attrs{'-client'};
 	}
 	else {
-		client(%attrs);
+		%CLIENT_PARAMS = %attrs;
+		$MEMCACHE = _connect();
 	}
 }
 
-sub client {
-	my %params = @_;
-	return $MEMCACHE ||= do {
-		my $memcache_pkg;
-		eval {
-			require Cache::Memcached::Fast;
-			$memcache_pkg = 'Cache::Memcached::Fast';
-		};
-		if ($@) {
-			require Cache::Memcached;
-			$memcache_pkg = 'Cache::Memcached';
-		}
-		$memcache_pkg->new(\%params);
+sub reset {
+	undef $MEMCACHE;
+	if (@_) {
+		$MEMCACHE = $_[0];
+	}
+	elsif (%CLIENT_PARAMS) {
+		$MEMCACHE = _connect();
+	}
+}
+
+sub _connect {
+	my $memcache_pkg;
+	eval {
+		require Cache::Memcached::Fast;
+		$memcache_pkg = 'Cache::Memcached::Fast';
 	};
+	if ($@) {
+		require Cache::Memcached;
+		$memcache_pkg = 'Cache::Memcached';
+	}
+	return $memcache_pkg->new(\%CLIENT_PARAMS);
 }
 
 sub CacheMemoize :ATTR_SUB {
@@ -223,8 +233,10 @@ a new thread.  This can be done like this:
 		# parent
 	}
 	else {
-		Memoize::Memcached::Attribute::client(%client_constructor_params);
-		# or $Memoize::Memcached::Attribute::MEMCACHE = $memcached_client_object;
+		# create a new client using the parameters you used to create the original object
+		Memoize::Memcached::Attribute::reset();
+		# or pass in your own object
+		Memoize::Memcached::Attribute::reset($new_memcached_client);
 	}
 
 =head1 ACKNOWLEDGEMENTS
